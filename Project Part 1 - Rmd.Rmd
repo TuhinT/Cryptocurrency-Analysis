@@ -1,0 +1,122 @@
+---
+title: "Project- Question 2 
+
+By Ujjwal Siddharth (Net id: uxs170430) and Tuhin T Das(Net id:txd170630)"
+
+output: html_document
+---
+Q.) Finding each customer from the data of 10 tokens who has the maximum amount of transactions and then see if any one customer is influencing the buying/selling pattern for those tokens.
+
+
+Loading Data
+```{r results = 'asis'}
+
+networkomisegoTX <- read.csv("C:/Users/ujjwa/Desktop/Home_Work/Stat/Project/Our token/networkomisegoTX.txt", sep="")
+library("sqldf", lib.loc="~/R/win-library/3.5")
+tokenAmt = 49248051100000000000000000000000000000000000000000000000000000000000000000000000
+networkomisegoTX_clean <-sqldf("select * from networkomisegoTX where tokenAmount<'$tokenAmt' order by tokenAmount desc")
+library(knitr)
+kable(networkomisegoTX_clean[1:15, ], caption = 'Token Data loaded into dataframe(top 15 results)')
+```
+
+Top 10 Rows Demonstrated for all tables
+
+User Buying Grouping
+```{r results = 'asis'}
+library(sqldf)
+Active_User_buying = sqldf("select toNodeId as node,count(*) as buy from networkomisegoTX_clean group by toNodeId")
+kable(Active_User_buying[1:10, ])
+```
+
+User Selling Grouping
+```{r results = 'asis'}
+Active_User_selling = sqldf("select romNodeId as node,count(*) as sell from networkomisegoTX_clean group by romNodeId")
+
+kable(Active_User_selling[1:10, ])
+```
+
+Finding out the most active user aka the user with highest buying and selling frequencies
+```{r results = 'asis'}
+activity <- merge(Active_User_buying, Active_User_selling, by="node", all.x=TRUE)
+activity[is.na(activity)] <- 0
+mostActive = sqldf(" select node from (select node,sum(buy+sell) as txn, buy/sell as ratio from activity where (ratio>0.5 AND ratio<2)  group by node order by txn desc) limit 1")
+kable(mostActive[1:1, ])
+
+```
+
+Selling pattern Grouped per 30 mins for most active user
+
+```{r results = 'asis'}
+
+userA_data_Selling<-sqldf("select round(unixTime/(30* 60)) as unixTime,count(*) as sellingFreq from networkomisegoTX_clean where romNodeId=297278 group by round(unixTime/(30* 60)) order by unixTime")
+```
+
+
+Buying pattern Grouped per 30 mins for most active user
+
+```{r results = 'asis'}
+
+userA_data_Buying<-sqldf("select round(unixTime/(30* 60)) as unixTime,count(*) as buyingFreq from networkomisegoTX_clean where toNodeId=297278 group by round(unixTime/(30* 60)) order by unixTime")
+```
+
+
+Selling pattern Grouped for all users
+```{r results = 'asis'}
+
+library("ggplot2")
+library("gridExtra")
+overall_data_Selling<-sqldf("select round(unixTime/(30* 60)) as unixTime,count(*) as sellingOverallFreq from networkomisegoTX_clean group by round(unixTime/(30* 60))  order by unixTime")
+kable(overall_data_Selling[1:10, ])
+
+
+```
+
+Buying pattern Grouped for all users
+```{r results = 'asis'}
+
+overall_data_Buying<-sqldf("select round(unixTime/(30* 60)) as unixTime,count(*) as buyingOverallFreq from networkomisegoTX_clean group by round(unixTime/(30* 60))  order by unixTime")
+kable(overall_data_Buying[1:10, ])
+
+
+```
+
+
+Plotting Buying and Selling patterns
+
+```{r, fig.width=14, fig.height=12}
+
+sell_joint <- merge(overall_data_Selling, userA_data_Selling, by="unixTime", all.x=TRUE)
+
+sell_joint[is.na(sell_joint)] <- 0
+
+par(mfrow=c(2,1))
+
+plot(sell_joint$unixTime, sell_joint$sellingOverallFreq, type = "b", frame = FALSE, pch = 19, 
+          col = "red", xlab = "Time", ylab = "Selling Frequency",main = "Selling Distribution")
+lines(sell_joint$unixTime, sell_joint$sellingFreq, type = "b", pch = 19, col = "blue",lty = 2)
+
+
+legend("topleft", legend=c("Overall", "Top User"),
+       col=c("red", "blue"), lty = 1:2, cex=0.8)
+
+
+buy_joint <- merge(overall_data_Buying, userA_data_Buying, by="unixTime", all.x=TRUE)
+
+buy_joint[is.na(buy_joint)] <- 0
+
+plot(buy_joint$unixTime, buy_joint$buyingOverallFreq, type = "b", frame = FALSE, pch = 19, 
+     col = "red", xlab = "Time", ylab = "Buying Frequency",main = "Buying Distribution")
+lines(buy_joint$unixTime, buy_joint$buyingFreq, type = "b", pch = 19, col = "blue",lty = 2)
+
+
+legend("topleft", legend=c("Overall", "Top User"),
+       col=c("red", "blue"), lty = 1:2, cex=0.8)
+
+
+
+
+```
+
+Conclusion:
+
+We find that our most active user at certain instances does effect the buying/selling decisions of the entire population. In both the plots we notice a surge in buying or selling right after a transaction made by our chosen user. We have run this code currently on one token and in the final submission we be submitting for 9 other tokens.
